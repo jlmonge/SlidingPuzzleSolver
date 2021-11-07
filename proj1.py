@@ -4,9 +4,7 @@ from collections import deque
 
 '''
 Moves used in optimal result:
-1. go all the way left,
-2. go all the way right, and
-3. go up the closet available reccess.
+1. ...
 This is fine; the instructions say that a man may go any distance
 that is possible in a move, so I decided it would be best for the men
 to move only in optimal moves, as used in the optimal solution. 
@@ -20,9 +18,14 @@ class Problem:
         return state == self.goal_state
 
 class Node:
-    def __init__(self, state, parent=None):
+    def __init__(self, state, parent=None, move=None):
         self.state = state # list of current positions of men
         self.parent = parent
+        self.move = move
+        if (self.parent == None):
+            self.g = 0 # 
+        else:
+            self.g = parent.g + 1
 
 def general_search(problem, QUEUEING_FUNCTION):
     nodes = deque([problem.initial_state])    # deque
