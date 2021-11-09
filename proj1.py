@@ -2,6 +2,12 @@ from collections import deque
 import heapq
 import time
 
+#test puzzles
+solved = [['A','N','G'],['E','L','I'],['C','A','*']] # depth 0
+easy = [['A','N','G'],['E','L','I'],['C','*','A']] # depth 1
+medium = [['E','N','G'],['A','I','*'],['C','L','A']] # depth 17
+hard = [['A','C','I'],['L','E','G'],['N','A','*']] # depth 30
+
 class Problem: # specifications of the problem
     def __init__(self, initial_state):
         self.initial_state = initial_state # pythonic list of lists representing inital puzzle state
@@ -9,9 +15,7 @@ class Problem: # specifications of the problem
         self.goal_state = [['A','N','G'],['E','L','I'],['C','A','*']]
 
     def goal_test(self, state): # returns True if current state is goal state, else False
-        return state == self.goal_state
-    
-        
+        return state == self.goal_state 
 
 class Node: # node representing current state of the problem 
     def __init__(self, problem, state, parent=None, heuristic=None):
@@ -32,15 +36,14 @@ class Node: # node representing current state of the problem
 
     def __lt__(self, other): # used in A*
         return self.f < other.f
-    
-    '''def __repr__(self): # used in A*
-        return str(self.state)'''
 
     def h(self):
         if self.heuristic == 'misplaced':
             return self.misplaced()
         elif self.heuristic == 'manhattan':
             return self.manhattan()
+        else:
+            return 0
 
     def shift_blank_up(self, i, j): # i = row of 0, j = col of 0
         if i != 0 and self.state[i-1][j] != '*': # blank can be shifted up
@@ -108,52 +111,12 @@ class Node: # node representing current state of the problem
                     g_row, g_col = self.coords_of_val_in_goal_state(curr_val)#0,1
                     h += abs(row - g_row) + abs(col - g_col)
         return h
-
         
 class Solver:
     def __init__(self, problem):
         self.problem = problem
 
-    def uniform_cost_search(self):
-        initial_node = Node(self.problem, self.problem.initial_state)
-        nodes = deque([initial_node]) # pythonic queue for nodes
-        seen = set() # nodes whose states have been seen
-        seen.add(str(initial_node.state))
-        nodes_expanded = 0
-
-        while True:
-            if len(nodes) == 0: # every node has been visited
-                return None
-            node = nodes.popleft() # popleft() for fifo; pop for lifo()
-            if self.problem.goal_test(node.state): # go in if goal state achieved
-                print("GOAL FOUND @ DEPTH", node.g) 
-                for row in node.state:
-                    print(row)
-                return node
-            #nodes = QUEUEING_FUNCTION(nodes, EXPAND(node, problem.OPERATORS)) # for loop
-            moves = node.possible_moves()
-            for i in moves: # i == type(Node)
-                #print(i)
-                if i: # if i is None, that means the move wasn't possible, so no point in appending it to nodes
-                    nodes_expanded += 1
-                    if self.problem.goal_test(i.state):
-                        print("GOAL FOUND @ DEPTH", i.g, "AFTER " +
-                            str(nodes_expanded) + " NODES EXPANDED")
-                        for row in i.state:
-                            print(row)
-                        return node
-                    if str(i.state) not in seen:
-                        nodes.append(i)
-                        seen.add(str(i.state))
-                        print("DEPTH", i.g) 
-                        for row in i.state:
-                            print(row)
-
     def a_star(self, heuristic):
-        '''
-        if heuristic == "misplaced":
-            h = node.misplaced(goal_node)
-        '''
         initial_node = Node(self.problem, self.problem.initial_state, heuristic=heuristic) # root node
         goal_node = Node(self.problem, self.problem.goal_state, heuristic=heuristic) # goal node
         nodes = [initial_node] # nodes that are yet to be fully explored
@@ -161,6 +124,7 @@ class Solver:
         seen = set() # nodes whose states have been seen
         seen.add(str(initial_node.state))
         nodes_expanded = 0
+        nodes_at_depth = {0:1}
 
         while True:
             if len(nodes) == 0: # every node has been visited
@@ -170,27 +134,28 @@ class Solver:
                 print("GOAL FOUND @ DEPTH", node.g) 
                 for row in node.state:
                     print(row)
-                return node
+                return node, nodes_at_depth
             moves = node.possible_moves()
             for i in moves: # i == type(Node)
                 #print(i)
                 if i: # if i is None, that means the move wasn't possible, so no point in appending it to nodes
                     nodes_expanded += 1
+                    if i.g not in nodes_at_depth:
+                        nodes_at_depth[i.g] = 1
+                    else:
+                        nodes_at_depth[i.g] += 1
                     if self.problem.goal_test(i.state):
                         print("GOAL FOUND @ DEPTH", i.g, "AFTER " +
                             str(nodes_expanded) + " NODES EXPANDED")
                         for row in i.state:
                             print(row)
-                        return node
+                        return node, nodes_at_depth
                     if str(i.state) not in seen:
                         heapq.heappush(nodes, i)
                         seen.add(str(i.state))
                         print("DEPTH", i.g) 
                         for row in i.state:
-                            print(row)
-                    
-                    
-            
+                            print(row)        
 
 def user_puzzle():
     """Return a valid puzzle as specified by the user."""
@@ -226,7 +191,7 @@ def user_puzzle():
                 raise Exception("Invalid input")
     return user_puzzle
 
-def path_generator(goal_node,solver):
+def path_generator(goal_node,depth_dict,solver):
     if goal_node:
         print('*' * 20, "generating path", '*' * 20)
         time.sleep(2)
@@ -239,10 +204,10 @@ def path_generator(goal_node,solver):
         path.reverse()
 
         for index in range(len(path)):
-            print(f"DEPTH {path[index].g}")
+            print(f"DEPTH {path[index].g} ({depth_dict[index]} NODES)")
             for row in path[index].state:
                 print(row)
-        print(f"DEPTH {goal_node.g + 1}: ")
+        print(f"DEPTH {goal_node.g + 1} ({depth_dict[index+1]} NODES)")
         for row in solver.problem.goal_state:
             print(row)
 
@@ -251,21 +216,21 @@ def user_algorithm(solver):
     choice = input("Enter 1 for Uniform Cost Search, " +
                 "2 for A* with the Misplaced Tile heuristic, or " + 
                 "3 for A* with the Manhattan Distance heuristic. ")
+    start_time = time.time()
     if choice == '1':
-        goal_node = solver.uniform_cost_search()
-        path_generator(goal_node,solver)
+        goal_node,depth_dict = solver.a_star(None) # uniform cost search is A* with h(n) hardcoded to 0
     elif choice == '2':
-        goal_node = solver.a_star("misplaced")
-        path_generator(goal_node,solver)
+        goal_node,depth_dict = solver.a_star("misplaced")
     elif choice == '3':
-        goal_node = solver.a_star("manhattan")
-        path_generator(goal_node,solver)
+        goal_node,depth_dict = solver.a_star("manhattan")
     else:
-        print("please enter a valid entry next time")
+        raise Exception("Invalid entry")
+    path_generator(goal_node,depth_dict,solver)
+    print(f"Runtime duration: {time.time()-start_time:.1f} seconds")
 
 def main():
     init_puzzle = user_puzzle() # prompt user for initial state of puzzle
-    #init_puzzle = [['A','C','I'],['L','E','G'],['N','A','*']] # sample problem in 536.pdf; depth: 30?
+    #init_puzzle = hard
     problem = Problem(init_puzzle) # creates an instance of Problem
     # program dives right into the algorithm selected by user
     solver = Solver(problem)
