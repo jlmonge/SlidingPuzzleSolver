@@ -1,3 +1,3 @@
-This is Nine Men in a Trench.
+This is the Angelica puzzle.
 
 Description will be updated as functionality is added.
