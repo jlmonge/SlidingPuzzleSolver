@@ -1,3 +1,1 @@
-This is the Angelica puzzle.
-
-Description will be updated as functionality is added.
+This is a solver for the Angelica Puzzle. This solver can solve using uniform cost search and A* search. 

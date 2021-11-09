@@ -2,54 +2,6 @@ from collections import deque
 import heapq
 import time
 
-# optimal solution: https://www.youtube.com/watch?v=o4ZDw9oFlP8
-
-'''
-Moves used in optimal result:
-1. out of trench (if possible, all the way left/right OR into another trench)
-2. into trench
-3. all the way left/right
-This is fine; the instructions say that a man may go any distance
-that is possible in a move, so I decided it would be best for the men
-to move only in optimal moves, as used in the optimal solution. 
-'''
-
-'''
-DEPTH 0
-   0 0 0
-0234567891
-
-DEPTH 1
-   4 0 0
-0230567891
-   0 6 0
-0234507891
-   0 0 8
-0234567091
-   0 0 0  *
-2034567891
-   0 0 0  *
-2304567891
-   0 0 0  *
-2340567891
-   5 0 0  *
-2340067891
-   5 0 0  *
-2346007891
-   5 0 0  *
-2346700891
-   5 8 0  *
-2346790001
-   5 8 1  *
-2346790000
-   5 8 1  *
-2346700009
-   5 0 1  *
-2346700089
-   5 1 0  *
-2346700089
-'''
-
 class Problem: # specifications of the problem
     def __init__(self, initial_state):
         self.initial_state = initial_state # pythonic list of lists representing inital puzzle state
@@ -62,24 +14,40 @@ class Problem: # specifications of the problem
         
 
 class Node: # node representing current state of the problem 
-    def __init__(self, state, parent=None):
+    def __init__(self, problem, state, parent=None, heuristic=None):
+        self.problem = problem
         self.state = state # pythonic list of lists representing current puzzle state
         self.parent = parent # parent Node
+        self.heuristic = heuristic
         # g is cost (since all moves have same cost, this also equals depth)
         # to get to the current node
         if (self.parent == None): # root node
             self.g = 0
         else:
             self.g = parent.g + 1
-        self.h = 0
-        self.f = 0
+
+    @property
+    def f(self):
+        return self.g + self.h()
+
+    def __lt__(self, other): # used in A*
+        return self.f < other.f
+    
+    '''def __repr__(self): # used in A*
+        return str(self.state)'''
+
+    def h(self):
+        if self.heuristic == 'misplaced':
+            return self.misplaced()
+        elif self.heuristic == 'manhattan':
+            return self.manhattan()
 
     def shift_blank_up(self, i, j): # i = row of 0, j = col of 0
         if i != 0 and self.state[i-1][j] != '*': # blank can be shifted up
             puzzle_child = [row[:] for row in self.state] # deep copy puzzle
             # swap blank with letter
             puzzle_child[i][j], puzzle_child[i-1][j] = puzzle_child[i-1][j], puzzle_child[i][j]
-            child = Node(puzzle_child, self) # create Node instance for child
+            child = Node(self.problem, puzzle_child, self, self.heuristic) # create Node instance for child
             return child
 
     def shift_blank_down(self, i, j):
@@ -87,7 +55,7 @@ class Node: # node representing current state of the problem
             puzzle_child = [row[:] for row in self.state] # deep copy puzzle
             # swap blank with letter
             puzzle_child[i][j], puzzle_child[i+1][j] = puzzle_child[i+1][j], puzzle_child[i][j]
-            child = Node(puzzle_child, self) # create Node instance for child
+            child = Node(self.problem, puzzle_child, self, self.heuristic) # create Node instance for child
             return child
 
     def shift_blank_left(self, i, j):
@@ -95,7 +63,7 @@ class Node: # node representing current state of the problem
             puzzle_child = [row[:] for row in self.state] # deep copy puzzle
             # swap blank with letter
             puzzle_child[i][j], puzzle_child[i][j-1] = puzzle_child[i][j-1], puzzle_child[i][j]
-            child = Node(puzzle_child, self) # create Node instance for child
+            child = Node(self.problem, puzzle_child, self, self.heuristic) # create Node instance for child
             return child
 
     def shift_blank_right(self, i, j): # (1,0)
@@ -103,7 +71,7 @@ class Node: # node representing current state of the problem
             puzzle_child = [row[:] for row in self.state] # deep copy puzzle
             # swap blank with letter
             puzzle_child[i][j], puzzle_child[i][j+1] = puzzle_child[i][j+1], puzzle_child[i][j]
-            child = Node(puzzle_child, self) # create Node instance for child
+            child = Node(self.problem, puzzle_child, self, self.heuristic) # create Node instance for child
             return child
 
     def possible_moves(self):
@@ -117,12 +85,28 @@ class Node: # node representing current state of the problem
                     poss_moves.append(self.shift_blank_right(row, col))
         return poss_moves # list of child nodes
 
-    def misplaced(self, goal_node):
+    def misplaced(self):
         h = 0
-        for row in range(len(self.state)):
-            for col in range(len(self.state[row])):
-                if self.state[row][col] != goal_node.state[row][col]:
+        for row in range(3):
+            for col in range(3):
+                if self.state[row][col] != self.problem.goal_state[row][col]:
                     h += 1
+        return h
+
+    def coords_of_val_in_goal_state(self, curr_val): # helper fn for manhattan
+        for row in range(3):
+            for col in range(3):
+                if self.problem.goal_state[row][col] == curr_val:
+                    return row, col
+
+    def manhattan(self):
+        h = 0
+        for row in range(3): # 2
+            for col in range(3): # 0
+                if self.state[row][col] != self.problem.goal_state[row][col]: # skip m.d. == 0
+                    curr_val = self.state[row][col]
+                    g_row, g_col = self.coords_of_val_in_goal_state(curr_val)#0,1
+                    h += abs(row - g_row) + abs(col - g_col)
         return h
 
         
@@ -131,10 +115,11 @@ class Solver:
         self.problem = problem
 
     def uniform_cost_search(self):
-        initial_node = Node(self.problem.initial_state)
+        initial_node = Node(self.problem, self.problem.initial_state)
         nodes = deque([initial_node]) # pythonic queue for nodes
         seen = set() # nodes whose states have been seen
         seen.add(str(initial_node.state))
+        nodes_expanded = 0
 
         while True:
             if len(nodes) == 0: # every node has been visited
@@ -150,8 +135,10 @@ class Solver:
             for i in moves: # i == type(Node)
                 #print(i)
                 if i: # if i is None, that means the move wasn't possible, so no point in appending it to nodes
+                    nodes_expanded += 1
                     if self.problem.goal_test(i.state):
-                        print("GOAL FOUND @ DEPTH", i.g) 
+                        print("GOAL FOUND @ DEPTH", i.g, "AFTER " +
+                            str(nodes_expanded) + " NODES EXPANDED")
                         for row in i.state:
                             print(row)
                         return node
@@ -167,18 +154,18 @@ class Solver:
         if heuristic == "misplaced":
             h = node.misplaced(goal_node)
         '''
-        initial_node = Node(self.problem.initial_state)
-        goal_node = Node(self.problem.goal_state)
-        open_set = deque([initial_node]) # pythonic queue for nodes
+        initial_node = Node(self.problem, self.problem.initial_state, heuristic=heuristic) # root node
+        goal_node = Node(self.problem, self.problem.goal_state, heuristic=heuristic) # goal node
+        nodes = [initial_node] # nodes that are yet to be fully explored
+        heapq.heapify(nodes)
         seen = set() # nodes whose states have been seen
         seen.add(str(initial_node.state))
-        
-        g_list = []
+        nodes_expanded = 0
 
         while True:
-            if len(open_set) == 0: # every node has been visited
+            if len(nodes) == 0: # every node has been visited
                 return None
-            node = open_set.popleft() # popleft() for fifo; pop for lifo()
+            node = heapq.heappop(nodes) # pop node with lowest f score
             if self.problem.goal_test(node.state): # go in if goal state achieved
                 print("GOAL FOUND @ DEPTH", node.g) 
                 for row in node.state:
@@ -188,17 +175,21 @@ class Solver:
             for i in moves: # i == type(Node)
                 #print(i)
                 if i: # if i is None, that means the move wasn't possible, so no point in appending it to nodes
+                    nodes_expanded += 1
                     if self.problem.goal_test(i.state):
-                        print("GOAL FOUND @ DEPTH", i.g) 
+                        print("GOAL FOUND @ DEPTH", i.g, "AFTER " +
+                            str(nodes_expanded) + " NODES EXPANDED")
                         for row in i.state:
                             print(row)
                         return node
                     if str(i.state) not in seen:
-                        open_set.append(i)
+                        heapq.heappush(nodes, i)
                         seen.add(str(i.state))
                         print("DEPTH", i.g) 
                         for row in i.state:
                             print(row)
+                    
+                    
             
 
 def user_puzzle():
@@ -263,11 +254,12 @@ def user_algorithm(solver):
     if choice == '1':
         goal_node = solver.uniform_cost_search()
         path_generator(goal_node,solver)
-                
     elif choice == '2':
-        solver.a_star("misplaced")
+        goal_node = solver.a_star("misplaced")
+        path_generator(goal_node,solver)
     elif choice == '3':
-        solver.a_star("manhattan")
+        goal_node = solver.a_star("manhattan")
+        path_generator(goal_node,solver)
     else:
         print("please enter a valid entry next time")
 
